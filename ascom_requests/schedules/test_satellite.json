@@ -1,0 +1,61 @@
+{
+  "schedule": [
+    {
+      "action": "telescope_connect"
+    },
+    {
+      "action": "dome_connect"
+    },
+    {
+      "action": "telescope_unpark"
+    },
+    {
+      "action": "dome_open_shutter"
+    },
+    {
+      "action": "dome_slave",
+      "params": {"enabled": true}
+    },
+    {
+      "action": "telescope_tracking",
+      "params": {"enabled": true}
+    },
+    {
+      "action": "satellite_get_visible",
+      "params": {
+        "location": "Australia/Sydney",
+        "lat": -33.9173,
+        "lon": 151.2313,
+        "elevation": 40.0,
+        "sunset_window_minutes": 30
+      }
+    },
+    {
+      "action": "satellite_slew_to_next",
+      "params": {"index": 0}
+    },
+    {
+      "action": "dome_slave",
+      "params": {"enabled": false}
+    },
+    {
+      "action": "telescope_tracking",
+      "params": {"enabled": false}
+    },
+    {
+      "action": "telescope_park"
+    },
+    {
+      "action": "dome_close_shutter"
+    },
+    {
+      "action": "dome_park"
+    },
+    {
+      "action": "telescope_disconnect"
+    },
+    {
+      "action": "dome_disconnect"
+    }
+  ]
+}
