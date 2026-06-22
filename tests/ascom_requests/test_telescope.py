@@ -354,7 +354,7 @@ def test_park_unpark():
     step("Verifying slew works after unpark...")
     telescope.set_tracking(True)
     cur_ra = telescope.get_rightascension()
-    target_ra = (cur_ra + 0.5) % 24.0
+    target_ra = (cur_ra + 1.0) % 24.0
     cur_dec = telescope.get_declination()
     target_dec = max(min(cur_dec, 10.0), -80.0)
     telescope.slew_to_coordinates_async(target_ra, target_dec)
@@ -375,7 +375,7 @@ def test_target_coordinates():
     cur_ra = telescope.get_rightascension()
     cur_dec = telescope.get_declination()
 
-    target_ra = (cur_ra + 0.5) % 24.0
+    target_ra = (cur_ra + 1.0) % 24.0
     target_dec = max(min(cur_dec + 3.0, 10.0), -80.0)
 
     step(f"Setting target RA={target_ra:.4f}h Dec={target_dec:.4f}°...")

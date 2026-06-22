@@ -42,6 +42,7 @@ from tests.ascom_requests import dome_geometry
 
 DOME_AZ_TOLERANCE = 12.0    # degrees — dome encoder has ~10° error
 POLL_INTERVAL = 2           # seconds between polls
+DOME_STABLE_PERIOD = 2      # seconds dome must be stationary before considered settled
 SLEW_TIMEOUT = 120          # seconds max wait for telescope slew
 DOME_SETTLE_TIMEOUT = 90    # seconds max wait for slave loop to fire + dome to arrive
 
@@ -139,7 +140,7 @@ def wait_dome_slave_settle(timeout=DOME_SETTLE_TIMEOUT):
                 info(f"  dome stopped at Az={az:.1f}° ({secs}s) — confirming stable...")
             else:
                 idle = time.time() - stable_since
-                if idle >= 5:
+                if idle >= DOME_STABLE_PERIOD:
                     info(f"  dome stable for {idle:.0f}s at Az={az:.1f}°")
                     return
 
