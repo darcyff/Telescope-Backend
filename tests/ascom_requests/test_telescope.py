@@ -124,6 +124,7 @@ def test_connect():
 def test_read_status():
     """Read all basic status properties — nothing moves, read-only."""
     header("TEST: Read Basic Status (read-only, nothing moves)")
+    ensure_connected()
 
     props = {
         "Name":             telescope.get_name,
@@ -413,6 +414,7 @@ def test_target_coordinates():
 def test_capabilities():
     """Read all capability flags and verify they return booleans."""
     header("TEST: Capability Flags")
+    ensure_connected()
 
     caps = {
         "CanFindHome":              telescope.get_canfindhome,
@@ -443,6 +445,7 @@ def test_capabilities():
 def test_site_info():
     """Read and verify site location info."""
     header("TEST: Site Information")
+    ensure_connected()
 
     lat = telescope.get_sitelatitude()
     lon = telescope.get_sitelongitude()
@@ -460,6 +463,7 @@ def test_site_info():
 def test_disconnect():
     """Disconnect and verify reads fail when disconnected."""
     header("TEST: Disconnect")
+    ensure_connected()
 
     step("Disconnecting telescope...")
     telescope.set_connected(False)

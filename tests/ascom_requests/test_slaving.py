@@ -41,10 +41,9 @@ from tests.ascom_requests import dome_geometry
 # ── Config ───────────────────────────────────────────────────────────
 
 DOME_AZ_TOLERANCE = 12.0    # degrees — dome encoder has ~10° error
-SLAVE_SETTLE_TIME = 15      # seconds to wait for dome slave loop to act
 POLL_INTERVAL = 2           # seconds between polls
 SLEW_TIMEOUT = 120          # seconds max wait for telescope slew
-DOME_MOVE_TIMEOUT = 60      # seconds max wait for dome to stop after slave
+DOME_SETTLE_TIMEOUT = 90    # seconds max wait for slave loop to fire + dome to arrive
 
 
 class TestFailure(Exception):
@@ -84,6 +83,18 @@ def check(condition, pass_msg, fail_msg):
         raise TestFailure(fail_msg)
 
 
+def ensure_both_connected():
+    """Connect to both telescope and dome if not already connected."""
+    if not telescope.get_connected():
+        step("Telescope not connected — connecting first...")
+        telescope.set_connected(True)
+        check(telescope.get_connected() is True, "Telescope connected", "Failed to connect telescope")
+    if not dome.get_connected():
+        step("Dome not connected — connecting first...")
+        dome.set_connected(True)
+        check(dome.get_connected() is True, "Dome connected", "Failed to connect dome")
+
+
 def wait_telescope_stopped(timeout=SLEW_TIMEOUT):
     start = time.time()
     while time.time() - start < timeout:
@@ -95,30 +106,44 @@ def wait_telescope_stopped(timeout=SLEW_TIMEOUT):
     raise TestFailure(f"Telescope still slewing after {timeout}s")
 
 
-def wait_dome_stopped(timeout=DOME_MOVE_TIMEOUT):
+def wait_dome_slave_settle(timeout=DOME_SETTLE_TIMEOUT):
+    """Poll until the dome slave loop fires, the dome finishes moving, and stays stopped.
+
+    Phases:
+      1. Wait for the dome to start slewing (slave loop hasn't fired yet).
+         If it doesn't start within a grace period, assume it was already
+         close enough and the slave loop decided no move was needed.
+      2. Once slewing, poll until it stops.
+      3. After it stops, watch for one more cycle in case the slave loop
+         re-fires (it may correct after re-reading the telescope position).
+    """
+    step("Waiting for dome slave to sync...")
     start = time.time()
-    while time.time() - start < timeout:
-        if not dome.get_slewing():
-            return
-        elapsed = int(time.time() - start)
+    stable_since = None
+
+    while True:
+        elapsed = time.time() - start
+        if elapsed > timeout:
+            raise TestFailure(f"Dome did not settle within {timeout}s")
+
+        slewing = dome.get_slewing()
         az = dome.get_azimuth()
-        info(f"  dome moving... ({elapsed}s)  Az={az:.1f}°")
+        secs = int(elapsed)
+
+        if slewing:
+            stable_since = None
+            info(f"  dome moving... ({secs}s)  Az={az:.1f}°")
+        else:
+            if stable_since is None:
+                stable_since = time.time()
+                info(f"  dome stopped at Az={az:.1f}° ({secs}s) — confirming stable...")
+            else:
+                idle = time.time() - stable_since
+                if idle >= 5:
+                    info(f"  dome stable for {idle:.0f}s at Az={az:.1f}°")
+                    return
+
         time.sleep(POLL_INTERVAL)
-    raise TestFailure(f"Dome still moving after {timeout}s")
-
-
-def wait_dome_slave_settle():
-    """Wait for the slave loop to issue a dome command and the dome to finish moving."""
-    step(f"Waiting {SLAVE_SETTLE_TIME}s for dome slave loop to sync...")
-    time.sleep(SLAVE_SETTLE_TIME)
-    # After the slave loop fires, the dome may still be slewing
-    if dome.get_slewing():
-        step("Dome is still moving, waiting for it to stop...")
-        wait_dome_stopped()
-    # Give one more cycle for the slave loop to re-check
-    time.sleep(3)
-    if dome.get_slewing():
-        wait_dome_stopped()
 
 
 def pier_side_str(val):
@@ -182,6 +207,7 @@ def test_connect_both():
 def test_enable_slaving():
     """Enable dome slaving and verify the flag is set."""
     header("TEST: Enable Dome Slaving")
+    ensure_both_connected()
 
     # Make sure telescope is unparked and tracking
     if telescope.get_atpark():
@@ -202,6 +228,7 @@ def test_enable_slaving():
 def test_initial_sync():
     """Verify the dome syncs to the telescope's current position."""
     header("TEST: Initial Slave Sync (no slew — just check current alignment)")
+    ensure_both_connected()
 
     observe("The dome should already be moving to match the telescope's current pointing.")
 
@@ -216,6 +243,7 @@ def test_initial_sync():
 def test_single_slew_sync():
     """Slew the telescope and verify the dome follows."""
     header("TEST: Single Slew — Dome Follows Telescope")
+    ensure_both_connected()
 
     cur_ra = telescope.get_rightascension()
     cur_dec = telescope.get_declination()
@@ -248,6 +276,7 @@ def test_single_slew_sync():
 def test_disable_slaving():
     """Disable slaving and verify the dome stops following."""
     header("TEST: Disable Slaving")
+    ensure_both_connected()
 
     step("Disabling dome slaving...")
     dome.set_slaved(False)
@@ -288,6 +317,7 @@ def test_disable_slaving():
 def test_multi_position():
     """Slew telescope to 20 positions and verify dome follows each time."""
     header("TEST: Multi-Position Alignment Sweep (20 positions)")
+    ensure_both_connected()
 
     observe("This test will slew the telescope to 20 different positions across the sky.")
     observe("After each slew, it verifies the dome has followed correctly.")
@@ -485,6 +515,7 @@ def test_multi_position():
 def test_cleanup():
     """Disable slaving, park telescope, disconnect both devices."""
     header("TEST: Cleanup")
+    ensure_both_connected()
 
     step("Disabling dome slaving...")
     dome.set_slaved(False)

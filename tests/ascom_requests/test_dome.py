@@ -74,6 +74,14 @@ def check(condition, pass_msg, fail_msg):
         raise TestFailure(fail_msg)
 
 
+def ensure_connected():
+    """Connect to the dome if not already connected."""
+    if not dome.get_connected():
+        step("Dome not connected — connecting first...")
+        dome.set_connected(True)
+        check(dome.get_connected() is True, "Connected successfully", "Failed to connect")
+
+
 def wait_until_stopped(timeout=SLEW_TIMEOUT):
     """Poll slewing status until the dome stops or timeout."""
     start = time.time()
@@ -107,6 +115,7 @@ def test_connect():
 def test_read_status():
     """Read all basic status properties — nothing moves, read-only."""
     header("TEST: Read Basic Status (read-only, nothing moves)")
+    ensure_connected()
 
     props = {
         "Name":             dome.get_name,
@@ -137,6 +146,7 @@ def test_read_status():
 def test_capabilities():
     """Read all capability flags and verify they return booleans."""
     header("TEST: Capability Flags")
+    ensure_connected()
 
     caps = {
         "CanFindHome":      dome.get_canfindhome,
@@ -158,6 +168,7 @@ def test_capabilities():
 def test_find_home():
     """Run the home-finding sequence (searches for reed switch index)."""
     header("TEST: Find Home")
+    ensure_connected()
 
     observe("The dome is about to search for its home (index) position.")
     observe("It may rotate up to a full revolution. Stand clear of the dome edge.")
@@ -195,6 +206,7 @@ def test_find_home():
 def test_slew_azimuth():
     """Slew the dome to a specific azimuth and verify arrival."""
     header("TEST: Slew to Azimuth")
+    ensure_connected()
 
     cur_az = dome.get_azimuth()
     info(f"Current azimuth: {cur_az:.1f}°")
@@ -231,6 +243,7 @@ def test_slew_azimuth():
 def test_slew_second_target():
     """Slew to a second azimuth to verify repeated slews work."""
     header("TEST: Slew to Second Target")
+    ensure_connected()
 
     cur_az = dome.get_azimuth()
     # Go to 180° (South) — a recognizable direction
@@ -265,6 +278,7 @@ def test_slew_second_target():
 def test_abort_slew():
     """Start a slew and abort it. Verify the dome stops."""
     header("TEST: Abort Slew")
+    ensure_connected()
 
     cur_az = dome.get_azimuth()
     # Pick a target far enough that we have time to abort
@@ -327,6 +341,7 @@ def test_abort_slew():
 def test_slaving():
     """Enable and disable dome slaving flag."""
     header("TEST: Dome Slaving Flag")
+    ensure_connected()
 
     step("Enabling slaving...")
     dome.set_slaved(True)
@@ -342,6 +357,7 @@ def test_slaving():
 def test_disconnect():
     """Disconnect and verify reads fail when disconnected."""
     header("TEST: Disconnect")
+    ensure_connected()
 
     step("Disconnecting dome...")
     dome.set_connected(False)
