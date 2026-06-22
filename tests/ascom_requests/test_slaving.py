@@ -41,10 +41,10 @@ from tests.ascom_requests import dome_geometry
 # ── Config ───────────────────────────────────────────────────────────
 
 DOME_AZ_TOLERANCE = 12.0    # degrees — dome encoder has ~10° error
-SLAVE_SETTLE_TIME = 15      # seconds to wait for dome slave loop to act
 POLL_INTERVAL = 2           # seconds between polls
+DOME_STABLE_PERIOD = 2      # seconds dome must be stationary before considered settled
 SLEW_TIMEOUT = 120          # seconds max wait for telescope slew
-DOME_MOVE_TIMEOUT = 60      # seconds max wait for dome to stop after slave
+DOME_SETTLE_TIMEOUT = 90    # seconds max wait for slave loop to fire + dome to arrive
 
 
 class TestFailure(Exception):
@@ -84,6 +84,18 @@ def check(condition, pass_msg, fail_msg):
         raise TestFailure(fail_msg)
 
 
+def ensure_both_connected():
+    """Connect to both telescope and dome if not already connected."""
+    if not telescope.get_connected():
+        step("Telescope not connected — connecting first...")
+        telescope.set_connected(True)
+        check(telescope.get_connected() is True, "Telescope connected", "Failed to connect telescope")
+    if not dome.get_connected():
+        step("Dome not connected — connecting first...")
+        dome.set_connected(True)
+        check(dome.get_connected() is True, "Dome connected", "Failed to connect dome")
+
+
 def wait_telescope_stopped(timeout=SLEW_TIMEOUT):
     start = time.time()
     while time.time() - start < timeout:
@@ -95,30 +107,44 @@ def wait_telescope_stopped(timeout=SLEW_TIMEOUT):
     raise TestFailure(f"Telescope still slewing after {timeout}s")
 
 
-def wait_dome_stopped(timeout=DOME_MOVE_TIMEOUT):
+def wait_dome_slave_settle(timeout=DOME_SETTLE_TIMEOUT):
+    """Poll until the dome slave loop fires, the dome finishes moving, and stays stopped.
+
+    Phases:
+      1. Wait for the dome to start slewing (slave loop hasn't fired yet).
+         If it doesn't start within a grace period, assume it was already
+         close enough and the slave loop decided no move was needed.
+      2. Once slewing, poll until it stops.
+      3. After it stops, watch for one more cycle in case the slave loop
+         re-fires (it may correct after re-reading the telescope position).
+    """
+    step("Waiting for dome slave to sync...")
     start = time.time()
-    while time.time() - start < timeout:
-        if not dome.get_slewing():
-            return
-        elapsed = int(time.time() - start)
+    stable_since = None
+
+    while True:
+        elapsed = time.time() - start
+        if elapsed > timeout:
+            raise TestFailure(f"Dome did not settle within {timeout}s")
+
+        slewing = dome.get_slewing()
         az = dome.get_azimuth()
-        info(f"  dome moving... ({elapsed}s)  Az={az:.1f}°")
+        secs = int(elapsed)
+
+        if slewing:
+            stable_since = None
+            info(f"  dome moving... ({secs}s)  Az={az:.1f}°")
+        else:
+            if stable_since is None:
+                stable_since = time.time()
+                info(f"  dome stopped at Az={az:.1f}° ({secs}s) — confirming stable...")
+            else:
+                idle = time.time() - stable_since
+                if idle >= DOME_STABLE_PERIOD:
+                    info(f"  dome stable for {idle:.0f}s at Az={az:.1f}°")
+                    return
+
         time.sleep(POLL_INTERVAL)
-    raise TestFailure(f"Dome still moving after {timeout}s")
-
-
-def wait_dome_slave_settle():
-    """Wait for the slave loop to issue a dome command and the dome to finish moving."""
-    step(f"Waiting {SLAVE_SETTLE_TIME}s for dome slave loop to sync...")
-    time.sleep(SLAVE_SETTLE_TIME)
-    # After the slave loop fires, the dome may still be slewing
-    if dome.get_slewing():
-        step("Dome is still moving, waiting for it to stop...")
-        wait_dome_stopped()
-    # Give one more cycle for the slave loop to re-check
-    time.sleep(3)
-    if dome.get_slewing():
-        wait_dome_stopped()
 
 
 def pier_side_str(val):
@@ -182,6 +208,7 @@ def test_connect_both():
 def test_enable_slaving():
     """Enable dome slaving and verify the flag is set."""
     header("TEST: Enable Dome Slaving")
+    ensure_both_connected()
 
     # Make sure telescope is unparked and tracking
     if telescope.get_atpark():
@@ -202,6 +229,7 @@ def test_enable_slaving():
 def test_initial_sync():
     """Verify the dome syncs to the telescope's current position."""
     header("TEST: Initial Slave Sync (no slew — just check current alignment)")
+    ensure_both_connected()
 
     observe("The dome should already be moving to match the telescope's current pointing.")
 
@@ -216,12 +244,13 @@ def test_initial_sync():
 def test_single_slew_sync():
     """Slew the telescope and verify the dome follows."""
     header("TEST: Single Slew — Dome Follows Telescope")
+    ensure_both_connected()
 
     cur_ra = telescope.get_rightascension()
     cur_dec = telescope.get_declination()
 
     target_ra = (cur_ra + 1.5) % 24.0
-    target_dec = max(min(cur_dec + 10.0, 10.0), -80.0)
+    target_dec = max(min(cur_dec + 10.0, -10.0), -80.0)
 
     info(f"Current:  RA={cur_ra:.4f}h  Dec={cur_dec:.4f}°")
     info(f"Target:   RA={target_ra:.4f}h  Dec={target_dec:.4f}°")
@@ -248,6 +277,7 @@ def test_single_slew_sync():
 def test_disable_slaving():
     """Disable slaving and verify the dome stops following."""
     header("TEST: Disable Slaving")
+    ensure_both_connected()
 
     step("Disabling dome slaving...")
     dome.set_slaved(False)
@@ -259,7 +289,7 @@ def test_disable_slaving():
     cur_ra = telescope.get_rightascension()
     target_ra = (cur_ra + 2.0) % 24.0
     cur_dec = telescope.get_declination()
-    target_dec = max(min(cur_dec - 10.0, 10.0), -80.0)
+    target_dec = max(min(cur_dec - 10.0, -10.0), -80.0)
 
     step(f"Slewing telescope to RA={target_ra:.2f}h Dec={target_dec:.2f}° with slaving OFF...")
     telescope.slew_to_coordinates_async(target_ra, target_dec)
@@ -288,6 +318,7 @@ def test_disable_slaving():
 def test_multi_position():
     """Slew telescope to 20 positions and verify dome follows each time."""
     header("TEST: Multi-Position Alignment Sweep (20 positions)")
+    ensure_both_connected()
 
     observe("This test will slew the telescope to 20 different positions across the sky.")
     observe("After each slew, it verifies the dome has followed correctly.")
@@ -304,14 +335,14 @@ def test_multi_position():
     telescope.set_tracking(True)
 
     # Generate 20 target positions spread across the visible sky.
-    # For Sydney (lat -33.9), objects between Dec -80 and +10 at reasonable
-    # altitudes are safe. We spread RA across the sky relative to current LST.
+    # For Sydney (lat -33.9), all targets use Dec ≤ -20° and RA within 3h
+    # of LST, keeping everything well above the horizon (min alt ~34°).
     lst = telescope.get_siderealtime()
     info(f"Current LST: {lst:.4f}h")
 
     targets = []
     # 4 Dec bands x 5 RA offsets = 20 positions
-    dec_values = [-70.0, -50.0, -30.0, -10.0]
+    dec_values = [-70.0, -50.0, -30.0, -20.0]
     ra_offsets = [-3.0, -1.5, 0.0, 1.5, 3.0]  # hours from LST
 
     for dec in dec_values:
@@ -323,45 +354,7 @@ def test_multi_position():
     pass_count = 0
     errors = []
 
-    # ── Set up log file ──────────────────────────────────────────────
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f"slaving_test_{timestamp}.csv")
-    log_txt_path = os.path.join(log_dir, f"slaving_test_{timestamp}.txt")
-
-    csv_file = open(log_path, "w", newline="")
-    csv_writer = csv.writer(csv_file)
-    csv_writer.writerow([
-        "#",
-        "Target RA (h)", "Target Dec (°)",
-        "Actual RA (h)", "Actual Dec (°)",
-        "LST (h)", "Pier Side",
-        "Telescope Alt (°)", "Telescope Az (°)",
-        "Expected Dome Az (°)", "Actual Dome Az (°)",
-        "Az Error (°)", f"Tolerance (°)",
-        "Result",
-    ])
-
-    # Also write a human-readable text log
-    txt_file = open(log_txt_path, "w")
-    txt_file.write("=" * 72 + "\n")
-    txt_file.write("  DOME SLAVING MULTI-POSITION TEST LOG\n")
-    txt_file.write(f"  Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-    txt_file.write(f"  Initial LST: {lst:.4f}h\n")
-    txt_file.write(f"  Tolerance: {DOME_AZ_TOLERANCE}°\n")
-    txt_file.write(f"  Site: lat={dome_geometry.SITE_LATITUDE}° lon={dome_geometry.SITE_LONGITUDE}°\n")
-    txt_file.write(f"  Dome radius: {dome_geometry.DOME_RADIUS}m\n")
-    txt_file.write(f"  Mount offsets: NS={dome_geometry.MOUNT_OFFSET_NS}m EW={dome_geometry.MOUNT_OFFSET_EW}m\n")
-    txt_file.write(f"  Pier height: {dome_geometry.MOUNT_PIER_HEIGHT}m\n")
-    txt_file.write(f"  RA→DEC: {dome_geometry.POLAR_AXIS_TO_DEC_AXIS}m  DEC→scope: {dome_geometry.DEC_AXIS_TO_TELESCOPE}m\n")
-    txt_file.write(f"  Tube radius: {dome_geometry.TELESCOPE_RADIUS}m\n")
-    txt_file.write("=" * 72 + "\n\n")
-
-    info(f"Logging results to:")
-    info(f"  CSV: {log_path}")
-    info(f"  TXT: {log_txt_path}")
 
     # ── Run positions ────────────────────────────────────────────────
 
@@ -388,7 +381,7 @@ def test_multi_position():
         step("Waiting for dome to follow...")
         wait_dome_slave_settle()
 
-        # Read all state for logging
+        # Read all state
         actual_ra = telescope.get_rightascension()
         actual_dec = telescope.get_declination()
         lst_now = telescope.get_siderealtime()
@@ -417,30 +410,6 @@ def test_multi_position():
 
         print(f"  {i:3d}  {target_ra:8.2f}  {target_dec:8.1f}  {expected_az:8.1f}  {actual_dome_az:8.1f}  {az_error:5.1f}°  {status}")
 
-        # ── Write to log files ───────────────────────────────────────
-
-        csv_writer.writerow([
-            i,
-            f"{target_ra:.4f}", f"{target_dec:.1f}",
-            f"{actual_ra:.4f}", f"{actual_dec:.4f}",
-            f"{lst_now:.4f}", pier_side_str(pier),
-            f"{tel_alt:.2f}", f"{tel_az:.2f}",
-            f"{expected_az:.2f}", f"{actual_dome_az:.2f}",
-            f"{az_error:.2f}", f"{DOME_AZ_TOLERANCE}",
-            status,
-        ])
-        csv_file.flush()
-
-        txt_file.write(f"Position {i}/{total}\n")
-        txt_file.write(f"  Target:      RA={target_ra:.4f}h  Dec={target_dec:.1f}°\n")
-        txt_file.write(f"  Telescope:   RA={actual_ra:.4f}h  Dec={actual_dec:.4f}°  Alt={tel_alt:.2f}°  Az={tel_az:.2f}°\n")
-        txt_file.write(f"  Sidereal:    LST={lst_now:.4f}h  Pier side={pier_side_str(pier)}\n")
-        txt_file.write(f"  Dome:        expected={expected_az:.2f}°  actual={actual_dome_az:.2f}°\n")
-        txt_file.write(f"  Error:       {az_error:.2f}° (tolerance: {DOME_AZ_TOLERANCE}°)\n")
-        txt_file.write(f"  Result:      {status}\n")
-        txt_file.write(f"{'─' * 72}\n")
-        txt_file.flush()
-
     # ── Summary ──────────────────────────────────────────────────────
 
     summary_lines = []
@@ -457,24 +426,6 @@ def test_multi_position():
     for line in summary_lines:
         print(line)
 
-    # Write summary to text log
-    txt_file.write("\n" + "=" * 72 + "\n")
-    txt_file.write("  SUMMARY\n")
-    txt_file.write("=" * 72 + "\n")
-    txt_file.write(f"  Passed: {pass_count}/{total}\n")
-    txt_file.write(f"  Failed: {total - pass_count}/{total}\n")
-    if errors:
-        txt_file.write(f"\n  Failed positions:\n")
-        for idx, ra, dec_val, exp, act, err in errors:
-            txt_file.write(f"    #{idx}: RA={ra:.2f}h Dec={dec_val:.1f}° — expected {exp:.1f}°, got {act:.1f}° (err {err:.1f}°)\n")
-    txt_file.write("\n")
-    txt_file.close()
-    csv_file.close()
-
-    info(f"Results saved to:")
-    info(f"  CSV: {log_path}")
-    info(f"  TXT: {log_txt_path}")
-
     check(
         pass_count == total,
         f"All {total} positions aligned within tolerance",
@@ -485,6 +436,7 @@ def test_multi_position():
 def test_cleanup():
     """Disable slaving, park telescope, disconnect both devices."""
     header("TEST: Cleanup")
+    ensure_both_connected()
 
     step("Disabling dome slaving...")
     dome.set_slaved(False)

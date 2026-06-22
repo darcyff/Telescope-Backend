@@ -7,7 +7,7 @@ times using the ASCOM Alpaca wrappers in telescope.py and dome.py.
 Usage:
     python scheduler.py schedule.json
     python scheduler.py schedule.json --dry-run
-    python scheduler.py schedule.json --log-dir logs/schedules
+    python scheduler.py schedule.json --log
 
 Schedule format (see example at bottom of file or generate with --example):
     {
@@ -28,7 +28,7 @@ import json
 import time
 import argparse
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo as _tzinfo
 
 # Allow importing as a package when run as a script
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -43,6 +43,11 @@ SLEW_TIMEOUT = 120       # seconds before a slew is considered stuck
 HOME_TIMEOUT = 180       # dome home search can be slow
 
 log = logging.getLogger("scheduler")
+
+
+def _local_tz() -> _tzinfo:
+    """Return the system's local timezone."""
+    return datetime.now().astimezone().tzinfo
 
 
 # ── Action helpers ──────────────────────────────────────────────────────
@@ -142,35 +147,11 @@ def dome_slew_az(az: float, **kw):
     log.info(f"Dome arrived at Az={dome.get_azimuth():.2f}\u00b0")
 
 
-def dome_slew_alt(alt: float, **kw):
-    log.info(f"Slewing dome to Alt={alt:.2f}\u00b0")
-    dome.slew_to_altitude(alt)
-    _wait_dome_slew()
-    log.info(f"Dome arrived at Alt={dome.get_altitude():.2f}\u00b0")
-
-
-def dome_park(**kw):
-    log.info("Parking dome")
-    dome.park()
-    _wait_dome_slew()
-    log.info("Dome parked")
-
-
 def dome_findhome(**kw):
     log.info("Dome finding home")
     dome.findhome()
     _wait_dome_slew(timeout=HOME_TIMEOUT)
     log.info("Dome at home")
-
-
-def dome_open_shutter(**kw):
-    dome.open_shutter()
-    log.info("Dome shutter opened")
-
-
-def dome_close_shutter(**kw):
-    dome.close_shutter()
-    log.info("Dome shutter closed")
 
 
 def dome_slave(enabled: bool, **kw):
@@ -198,11 +179,7 @@ ACTIONS = {
     "dome_connect":           dome_connect,
     "dome_disconnect":        dome_disconnect,
     "dome_slew_az":           dome_slew_az,
-    "dome_slew_alt":          dome_slew_alt,
-    "dome_park":              dome_park,
     "dome_findhome":          dome_findhome,
-    "dome_open_shutter":      dome_open_shutter,
-    "dome_close_shutter":     dome_close_shutter,
     "dome_slave":             dome_slave,
     "dome_abort":             dome_abort,
 }
@@ -234,7 +211,8 @@ def load_schedule(path: str) -> list[dict]:
                 raise ValueError(f"Entry {i}: invalid time '{time_str}' "
                                  "(use ISO-8601, e.g. 2026-04-16T21:00:00)")
             if t.tzinfo is None:
-                t = t.replace(tzinfo=timezone.utc)
+                t = t.replace(tzinfo=_local_tz())
+            t = t.astimezone(timezone.utc)
         else:
             t = None  # no time means "run immediately after the previous entry"
 
@@ -253,8 +231,9 @@ def load_schedule(path: str) -> list[dict]:
 def print_schedule(entries: list[dict]):
     log.info(f"{'#':<4} {'Time':<26} {'Action':<25} Params")
     log.info("-" * 80)
+    local = _local_tz()
     for e in entries:
-        t = e["time"].isoformat() if e["time"] else "(after previous)"
+        t = e["time"].astimezone(local).isoformat() if e["time"] else "(after previous)"
         p = json.dumps(e["params"]) if e["params"] else ""
         log.info(f"{e['index']:<4} {t:<26} {e['action']:<25} {p}")
 
@@ -274,13 +253,14 @@ def run_schedule(entries: list[dict], dry_run: bool = False):
         if e["time"] is not None:
             now = datetime.now(timezone.utc)
             wait_seconds = (e["time"] - now).total_seconds()
+            local_time = e['time'].astimezone(_local_tz()).isoformat()
             if wait_seconds > 0:
-                log.info(f"Waiting {wait_seconds:.0f}s until {e['time'].isoformat()} "
+                log.info(f"Waiting {wait_seconds:.0f}s until {local_time} "
                          f"for entry {e['index']} ({e['action']})")
                 time.sleep(wait_seconds)
             elif wait_seconds < -60:
                 log.warning(f"Entry {e['index']} was scheduled for "
-                            f"{e['time'].isoformat()} ({-wait_seconds:.0f}s ago) "
+                            f"{local_time} ({-wait_seconds:.0f}s ago) "
                             "- running now")
 
         handler = ACTIONS[e["action"]]
@@ -300,8 +280,7 @@ EXAMPLE_SCHEDULE = {
         {"time": "2026-04-16T20:00:00", "action": "telescope_connect"},
         {"time": "2026-04-16T20:00:05", "action": "dome_connect"},
         {"time": "2026-04-16T20:00:10", "action": "telescope_unpark"},
-        {"time": "2026-04-16T20:00:15", "action": "dome_open_shutter"},
-        {"time": "2026-04-16T20:00:20", "action": "dome_slave", "params": {"enabled": True}},
+        {"time": "2026-04-16T20:00:15", "action": "dome_slave", "params": {"enabled": True}},
         {"time": "2026-04-16T20:00:30", "action": "telescope_tracking", "params": {"enabled": True}},
         {
             "time": "2026-04-16T21:00:00",
@@ -320,8 +299,7 @@ EXAMPLE_SCHEDULE = {
         },
         {"time": "2026-04-17T04:00:05", "action": "telescope_tracking", "params": {"enabled": False}},
         {"time": "2026-04-17T04:00:10", "action": "telescope_park"},
-        {"time": "2026-04-17T04:00:20", "action": "dome_close_shutter"},
-        {"time": "2026-04-17T04:00:30", "action": "dome_park"},
+        {"time": "2026-04-17T04:00:20", "action": "dome_findhome"},
         {"time": "2026-04-17T04:01:00", "action": "telescope_disconnect"},
         {"time": "2026-04-17T04:01:05", "action": "dome_disconnect"},
     ]
@@ -351,8 +329,8 @@ def main():
                         help="Path to a JSON schedule file")
     parser.add_argument("--dry-run", action="store_true",
                         help="Validate and print the schedule without executing")
-    parser.add_argument("--log-dir", default=None,
-                        help="Directory for log files")
+    parser.add_argument("--log", action="store_true",
+                        help="Save log files to logs/schedules")
     parser.add_argument("--example", action="store_true",
                         help="Print an example schedule JSON and exit")
     parser.add_argument("--list-actions", action="store_true",
@@ -371,7 +349,7 @@ def main():
     if not args.schedule:
         parser.error("A schedule file is required (or use --example / --list-actions)")
 
-    setup_logging(args.log_dir)
+    setup_logging("logs/schedules" if args.log else None)
 
     entries = load_schedule(args.schedule)
     run_schedule(entries, dry_run=args.dry_run)
