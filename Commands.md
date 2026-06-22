@@ -70,5 +70,5 @@ What each tests covers:
 # from the Telescope-Backend/ directory
 python -m tests.ascom_requests.test_telescope
 python -m tests.ascom_requests.test_dome
-python -m ascom_requests.scheduler schedules/test_telescope.json --dry-run
+python -m ascom_requests.scheduler ascom_requests/schedules/test_telescope.json --dry-run
 ```
