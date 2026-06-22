@@ -81,9 +81,6 @@ def get_cansyncazimuth():
 def get_azimuth():
     return _get("azimuth")
 
-def get_altitude():
-    return _get("altitude")
-
 def get_athome():
     return _get("athome")
 
@@ -117,17 +114,3 @@ def abort_slew():
 def findhome():
     return _put("findhome")
 
-def open_shutter():
-    return _put("openshutter")
-
-def close_shutter():
-    return _put("closeshutter")
-
-def park():
-    return _put("park")
-
-def set_park():
-    return _put("setpark")
-
-def slew_to_altitude(altitude: float):
-    return _put("slewtoaltitude", {"Altitude": altitude})

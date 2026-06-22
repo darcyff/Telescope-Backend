@@ -142,35 +142,11 @@ def dome_slew_az(az: float, **kw):
     log.info(f"Dome arrived at Az={dome.get_azimuth():.2f}\u00b0")
 
 
-def dome_slew_alt(alt: float, **kw):
-    log.info(f"Slewing dome to Alt={alt:.2f}\u00b0")
-    dome.slew_to_altitude(alt)
-    _wait_dome_slew()
-    log.info(f"Dome arrived at Alt={dome.get_altitude():.2f}\u00b0")
-
-
-def dome_park(**kw):
-    log.info("Parking dome")
-    dome.park()
-    _wait_dome_slew()
-    log.info("Dome parked")
-
-
 def dome_findhome(**kw):
     log.info("Dome finding home")
     dome.findhome()
     _wait_dome_slew(timeout=HOME_TIMEOUT)
     log.info("Dome at home")
-
-
-def dome_open_shutter(**kw):
-    dome.open_shutter()
-    log.info("Dome shutter opened")
-
-
-def dome_close_shutter(**kw):
-    dome.close_shutter()
-    log.info("Dome shutter closed")
 
 
 def dome_slave(enabled: bool, **kw):
@@ -198,11 +174,7 @@ ACTIONS = {
     "dome_connect":           dome_connect,
     "dome_disconnect":        dome_disconnect,
     "dome_slew_az":           dome_slew_az,
-    "dome_slew_alt":          dome_slew_alt,
-    "dome_park":              dome_park,
     "dome_findhome":          dome_findhome,
-    "dome_open_shutter":      dome_open_shutter,
-    "dome_close_shutter":     dome_close_shutter,
     "dome_slave":             dome_slave,
     "dome_abort":             dome_abort,
 }
@@ -300,8 +272,7 @@ EXAMPLE_SCHEDULE = {
         {"time": "2026-04-16T20:00:00", "action": "telescope_connect"},
         {"time": "2026-04-16T20:00:05", "action": "dome_connect"},
         {"time": "2026-04-16T20:00:10", "action": "telescope_unpark"},
-        {"time": "2026-04-16T20:00:15", "action": "dome_open_shutter"},
-        {"time": "2026-04-16T20:00:20", "action": "dome_slave", "params": {"enabled": True}},
+        {"time": "2026-04-16T20:00:15", "action": "dome_slave", "params": {"enabled": True}},
         {"time": "2026-04-16T20:00:30", "action": "telescope_tracking", "params": {"enabled": True}},
         {
             "time": "2026-04-16T21:00:00",
@@ -320,8 +291,7 @@ EXAMPLE_SCHEDULE = {
         },
         {"time": "2026-04-17T04:00:05", "action": "telescope_tracking", "params": {"enabled": False}},
         {"time": "2026-04-17T04:00:10", "action": "telescope_park"},
-        {"time": "2026-04-17T04:00:20", "action": "dome_close_shutter"},
-        {"time": "2026-04-17T04:00:30", "action": "dome_park"},
+        {"time": "2026-04-17T04:00:20", "action": "dome_findhome"},
         {"time": "2026-04-17T04:01:00", "action": "telescope_disconnect"},
         {"time": "2026-04-17T04:01:05", "action": "dome_disconnect"},
     ]
