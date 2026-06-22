@@ -1,0 +1,230 @@
+{
+  "metadata": {
+    "satellite": "STARLINK-1234",
+    "generated": "2026-06-23T00:09:01",
+    "observations": 8,
+    "first_pass": "2024-09-26T19:09:42",
+    "last_pass": "2024-09-26T19:39:42"
+  },
+  "schedule": [
+    {
+      "action": "dome_connect",
+      "time": "2024-09-26T19:04:42"
+    },
+    {
+      "action": "telescope_connect"
+    },
+    {
+      "action": "camera_connect"
+    },
+    {
+      "action": "telescope_unpark"
+    },
+    {
+      "action": "dome_findhome"
+    },
+    {
+      "action": "shutter_open"
+    },
+    {
+      "action": "dome_slave",
+      "params": {
+        "enabled": true
+      }
+    },
+    {
+      "action": "telescope_tracking",
+      "params": {
+        "enabled": true
+      }
+    },
+    {
+      "action": "camera_cooler",
+      "params": {
+        "enabled": true,
+        "temp": -10.0
+      }
+    },
+    {
+      "action": "camera_set_gain",
+      "params": {
+        "gain": 100
+      }
+    },
+    {
+      "action": "camera_set_offset",
+      "params": {
+        "offset": 10
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:07:42",
+      "params": {
+        "ra": 6.256611,
+        "dec": -3.142248
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:09:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_000_190942.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:19:42",
+      "params": {
+        "ra": 6.458808,
+        "dec": -3.033902
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:21:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_001_192142.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:23:42",
+      "params": {
+        "ra": 6.527738,
+        "dec": -3.041811
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:25:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_002_192542.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:29:42",
+      "params": {
+        "ra": 6.628378,
+        "dec": -3.044934
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:31:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_003_193142.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:30:42",
+      "params": {
+        "ra": 6.643821,
+        "dec": -3.031333
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:32:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_004_193242.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:31:42",
+      "params": {
+        "ra": 6.661606,
+        "dec": -3.041423
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:33:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_005_193342.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:35:42",
+      "params": {
+        "ra": 6.728631,
+        "dec": -3.041655
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:37:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_006_193742.fits"
+      }
+    },
+    {
+      "action": "telescope_slew_radec",
+      "time": "2024-09-26T19:37:42",
+      "params": {
+        "ra": 6.762504,
+        "dec": -3.045408
+      }
+    },
+    {
+      "action": "camera_capture",
+      "time": "2024-09-26T19:39:42",
+      "params": {
+        "duration": 5.0,
+        "save_path": "captures\\STARLINK-1234\\obs_007_193942.fits"
+      }
+    },
+    {
+      "action": "shutter_close",
+      "time": "2024-09-26T19:39:57"
+    },
+    {
+      "action": "dome_slave",
+      "params": {
+        "enabled": false
+      }
+    },
+    {
+      "action": "telescope_tracking",
+      "params": {
+        "enabled": false
+      }
+    },
+    {
+      "action": "telescope_park"
+    },
+    {
+      "action": "dome_findhome"
+    },
+    {
+      "action": "camera_cooler",
+      "params": {
+        "enabled": false
+      }
+    },
+    {
+      "action": "camera_disconnect"
+    },
+    {
+      "action": "telescope_disconnect"
+    },
+    {
+      "action": "dome_disconnect"
+    }
+  ],
+  "warnings": [
+    "Entry 19 (telescope_slew_radec) at 2024-09-26T19:30:42 is scheduled before entry 18 (camera_capture) at 2024-09-26T19:31:42 \u2014 it will run late instead of at its scheduled time",
+    "Entry 21 (telescope_slew_radec) at 2024-09-26T19:31:42 is scheduled before entry 20 (camera_capture) at 2024-09-26T19:32:42 \u2014 it will run late instead of at its scheduled time"
+  ]
+}
