@@ -1,0 +1,18 @@
+{
+  "schedule": [
+    {"action": "dome_connect"},
+    {"action": "telescope_connect"},
+    {"action": "camera_connect"},
+    {"action": "telescope_unpark"},
+    {"action": "dome_slave", "params": {"enabled": true}},
+    {"action": "shutter_open"},
+    {"action": "telescope_slew_radec", "params": {"ra": 5.278, "dec": -8.2}},
+    {"action": "camera_capture", "params": {"duration": 10.0, "save_path": "captures/schedule_1.fits"}},
+    {"action": "shutter_close"},
+    {"action": "dome_slave", "params": {"enabled": false}},
+    {"action": "telescope_park"},
+    {"action": "camera_disconnect"},
+    {"action": "telescope_disconnect"},
+    {"action": "dome_disconnect"}
+  ]
+}
