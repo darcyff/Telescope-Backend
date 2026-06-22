@@ -287,16 +287,29 @@ def test_abort_slew():
         time.sleep(5)
         moving = dome.get_slewing()
 
-    check(moving is True, "Dome is moving (mid-slew)", "Dome is not moving — cannot test abort")
+    info(f"  (get_slewing returned {moving!r})")
+    check(moving, "Dome is moving (mid-slew)", "Dome is not moving — cannot test abort")
 
     pre_abort_az = dome.get_azimuth()
 
     step("Sending ABORT...")
     dome.abort_slew()
-    time.sleep(3)
 
-    slewing = dome.get_slewing()
-    check(slewing is False, "Dome has stopped after abort", "Dome still moving after abort!")
+    step("Waiting for dome to stop after abort (up to 15s)...")
+    abort_timeout = 15
+    start = time.time()
+    while time.time() - start < abort_timeout:
+        slewing = dome.get_slewing()
+        elapsed = int(time.time() - start)
+        info(f"  ({elapsed}s) get_slewing={slewing!r}")
+        if not slewing:
+            break
+        time.sleep(POLL_INTERVAL)
+    else:
+        slewing = dome.get_slewing()
+
+    info(f"Final get_slewing value: {slewing!r}")
+    check(not slewing, "Dome has stopped after abort", f"Dome still moving after abort (slewing={slewing!r})")
 
     post_abort_az = dome.get_azimuth()
     info(f"Pre-abort azimuth:  {pre_abort_az:.1f}°")

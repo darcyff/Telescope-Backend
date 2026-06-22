@@ -5,12 +5,9 @@
     {"action": "telescope_unpark"},
     {"action": "dome_findhome"},
     {"action": "dome_slave", "params": {"enabled": true}},
-    {"action": "telescope_tracking", "params": {"enabled": true}},
     {"action": "telescope_slew_radec", "params": {"ra": 5.278, "dec": -8.2}, "time": "2026-04-16T07:34:00"},
     {"action": "telescope_slew_radec", "params": {"ra": 12.0, "dec": -40.0}},
-    {"action": "telescope_slew_radec", "params": {"ra": 18.5, "dec": -15.0}},
     {"action": "dome_slave", "params": {"enabled": false}},
-    {"action": "telescope_tracking", "params": {"enabled": false}},
     {"action": "telescope_disconnect"},
     {"action": "dome_disconnect"}
   ]

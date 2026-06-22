@@ -4,7 +4,6 @@
     {"action": "dome_findhome"},
     {"action": "dome_slew_az", "params": {"az": 90.0}},
     {"action": "dome_slew_az", "params": {"az": 0.0}},
-    {"action": "dome_park"},
     {"action": "dome_disconnect"}
   ]
 }

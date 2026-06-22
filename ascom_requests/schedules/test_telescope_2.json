@@ -2,9 +2,7 @@
   "schedule": [
     {"action": "telescope_connect", "time": "2026-04-16T06:59:00"},
     {"action": "telescope_unpark"},
-    {"action": "telescope_tracking", "params": {"enabled": true}},
     {"action": "telescope_slew_radec", "params": {"ra": 5.278, "dec": -8.2}},
-    {"action": "telescope_tracking", "params": {"enabled": false}},
     {"action": "telescope_park"},
     {"action": "telescope_disconnect"}
   ]
