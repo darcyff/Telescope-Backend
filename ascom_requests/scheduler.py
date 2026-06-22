@@ -35,12 +35,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ascom_requests import telescope
 from ascom_requests import dome
+from ascom_requests import camera
+from ascom_requests import shutter
 
 # ── Constants ───────────────────────────────────────────────────────────
 
 POLL_INTERVAL = 2        # seconds between slew-status polls
 SLEW_TIMEOUT = 120       # seconds before a slew is considered stuck
 HOME_TIMEOUT = 180       # dome home search can be slow
+SHUTTER_TIMEOUT = 60     # seconds for shutter open/close
+CAPTURE_DIR = "captures" # default directory for saved FITS files
 
 log = logging.getLogger("scheduler")
 
@@ -164,6 +168,74 @@ def dome_abort(**kw):
     log.info("Dome slew aborted")
 
 
+# ── Shutter actions ───────────────────────────────────────────────────
+
+def _wait_shutter(target_status: int, timeout=SHUTTER_TIMEOUT):
+    """Poll until the shutter reaches the target status (0=Open, 1=Closed)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        s = shutter.get_status()
+        if s == target_status:
+            return
+        time.sleep(POLL_INTERVAL)
+    raise TimeoutError(f"Shutter did not reach status {target_status} after {timeout}s")
+
+
+def shutter_open(**kw):
+    log.info("Opening shutter")
+    shutter.open_shutter()
+    _wait_shutter(0)
+    log.info("Shutter open")
+
+
+def shutter_close(**kw):
+    log.info("Closing shutter")
+    shutter.close_shutter()
+    _wait_shutter(1)
+    log.info("Shutter closed")
+
+
+# ── Camera actions ────────────────────────────────────────────────────
+
+def camera_connect(**kw):
+    camera.set_connected(True)
+    log.info("Camera connected")
+
+
+def camera_disconnect(**kw):
+    camera.set_connected(False)
+    log.info("Camera disconnected")
+
+
+def camera_cooler(enabled: bool, temp: float | None = None, **kw):
+    camera.set_cooler_on(enabled)
+    if enabled and temp is not None:
+        camera.set_ccd_temperature(temp)
+        log.info(f"Camera cooler on, target {temp}°C")
+    else:
+        log.info(f"Camera cooler {'on' if enabled else 'off'}")
+
+
+def camera_set_gain(gain: int, **kw):
+    camera.set_gain(gain)
+    log.info(f"Camera gain set to {gain}")
+
+
+def camera_set_offset(offset: int, **kw):
+    camera.set_offset(offset)
+    log.info(f"Camera offset set to {offset}")
+
+
+def camera_capture(duration: float, save_path: str | None = None,
+                   light: bool = True, **kw):
+    if save_path is None:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_path = os.path.join(CAPTURE_DIR, f"capture_{stamp}.fits")
+    log.info(f"Capturing {duration}s exposure -> {save_path}")
+    camera.capture(duration, save_path, light=light)
+    log.info(f"Image saved: {save_path}")
+
+
 # ── Action registry ─────────────────────────────────────────────────────
 
 ACTIONS = {
@@ -182,6 +254,14 @@ ACTIONS = {
     "dome_findhome":          dome_findhome,
     "dome_slave":             dome_slave,
     "dome_abort":             dome_abort,
+    "shutter_open":           shutter_open,
+    "shutter_close":          shutter_close,
+    "camera_connect":         camera_connect,
+    "camera_disconnect":      camera_disconnect,
+    "camera_cooler":          camera_cooler,
+    "camera_set_gain":        camera_set_gain,
+    "camera_set_offset":      camera_set_offset,
+    "camera_capture":         camera_capture,
 }
 
 
