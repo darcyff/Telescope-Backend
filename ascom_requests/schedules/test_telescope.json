@@ -2,11 +2,8 @@
   "schedule": [
     {"action": "telescope_connect"},
     {"action": "telescope_unpark"},
-    {"action": "telescope_tracking", "params": {"enabled": true}},
     {"action": "telescope_slew_radec", "params": {"ra": 5.278, "dec": -8.2}},
-    {"action": "telescope_slew_radec", "params": {"ra": 16.695, "dec": -26.432}},
-    {"action": "telescope_slew_altaz", "params": {"az": 180.0, "alt": 45.0}},
-    {"action": "telescope_tracking", "params": {"enabled": false}},
+    {"action": "telescope_slew_radec", "params": {"ra": 6.695, "dec": -6.432}},
     {"action": "telescope_park"},
     {"action": "telescope_disconnect"}
   ]

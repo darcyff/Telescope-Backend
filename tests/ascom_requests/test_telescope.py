@@ -75,6 +75,21 @@ def check(condition, pass_msg, fail_msg):
         raise TestFailure(fail_msg)
 
 
+def ensure_connected():
+    if not telescope.get_connected():
+        step("Telescope not connected — connecting first...")
+        telescope.set_connected(True)
+        check(telescope.get_connected() is True, "Connected successfully", "Failed to connect")
+
+
+def ensure_ready():
+    ensure_connected()
+    if telescope.get_atpark():
+        step("Telescope is parked — unparking first...")
+        telescope.unpark()
+        telescope.set_tracking(True)
+
+
 def wait_until_stopped(timeout=SLEW_TIMEOUT):
     """Poll slewing status until the telescope stops or timeout."""
     start = time.time()
@@ -151,10 +166,7 @@ def test_tracking():
     """Enable and disable sidereal tracking."""
     header("TEST: Tracking Control")
 
-    # Make sure we're unparked first
-    if telescope.get_atpark():
-        step("Telescope is parked — unparking first...")
-        telescope.unpark()
+    ensure_ready()
 
     step("Enabling tracking...")
     telescope.set_tracking(True)
@@ -184,10 +196,7 @@ def test_slew_coordinates():
     """Slew to RA/Dec coordinates and verify arrival."""
     header("TEST: Slew to Equatorial Coordinates (async)")
 
-    if telescope.get_atpark():
-        step("Telescope is parked — unparking first...")
-        telescope.unpark()
-        telescope.set_tracking(True)
+    ensure_ready()
 
     # Read current position and compute a safe offset target
     cur_ra = telescope.get_rightascension()
@@ -234,10 +243,7 @@ def test_slew_altaz():
     """Slew to Alt/Az coordinates and verify arrival."""
     header("TEST: Slew to Alt/Az Coordinates (async)")
 
-    if telescope.get_atpark():
-        step("Telescope is parked — unparking first...")
-        telescope.unpark()
-        telescope.set_tracking(True)
+    ensure_ready()
 
     cur_alt = telescope.get_altitude()
     cur_az = telescope.get_azimuth()
@@ -278,10 +284,7 @@ def test_abort_slew():
     """Start a slew and then abort it. Verify the telescope stops."""
     header("TEST: Abort Slew")
 
-    if telescope.get_atpark():
-        step("Telescope is parked — unparking first...")
-        telescope.unpark()
-        telescope.set_tracking(True)
+    ensure_ready()
 
     cur_ra = telescope.get_rightascension()
     cur_dec = telescope.get_declination()
@@ -322,11 +325,7 @@ def test_park_unpark():
     """Park the telescope, verify slews are rejected, then unpark."""
     header("TEST: Park and Unpark")
 
-    if telescope.get_atpark():
-        step("Already parked — unparking to start fresh...")
-        telescope.unpark()
-
-    telescope.set_tracking(True)
+    ensure_ready()
 
     observe("The telescope is about to PARK. It will slew to its park position.")
 
@@ -370,10 +369,7 @@ def test_target_coordinates():
     """Set and read target coordinates, then slew to target."""
     header("TEST: Target Coordinates and SlewToTarget")
 
-    if telescope.get_atpark():
-        step("Telescope is parked — unparking first...")
-        telescope.unpark()
-        telescope.set_tracking(True)
+    ensure_ready()
 
     cur_ra = telescope.get_rightascension()
     cur_dec = telescope.get_declination()
