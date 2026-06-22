@@ -249,7 +249,7 @@ def test_single_slew_sync():
     cur_dec = telescope.get_declination()
 
     target_ra = (cur_ra + 1.5) % 24.0
-    target_dec = max(min(cur_dec + 10.0, 10.0), -80.0)
+    target_dec = max(min(cur_dec + 10.0, -10.0), -80.0)
 
     info(f"Current:  RA={cur_ra:.4f}h  Dec={cur_dec:.4f}°")
     info(f"Target:   RA={target_ra:.4f}h  Dec={target_dec:.4f}°")
@@ -288,7 +288,7 @@ def test_disable_slaving():
     cur_ra = telescope.get_rightascension()
     target_ra = (cur_ra + 2.0) % 24.0
     cur_dec = telescope.get_declination()
-    target_dec = max(min(cur_dec - 10.0, 10.0), -80.0)
+    target_dec = max(min(cur_dec - 10.0, -10.0), -80.0)
 
     step(f"Slewing telescope to RA={target_ra:.2f}h Dec={target_dec:.2f}° with slaving OFF...")
     telescope.slew_to_coordinates_async(target_ra, target_dec)
@@ -334,14 +334,14 @@ def test_multi_position():
     telescope.set_tracking(True)
 
     # Generate 20 target positions spread across the visible sky.
-    # For Sydney (lat -33.9), objects between Dec -80 and +10 at reasonable
-    # altitudes are safe. We spread RA across the sky relative to current LST.
+    # For Sydney (lat -33.9), all targets use Dec ≤ -20° and RA within 3h
+    # of LST, keeping everything well above the horizon (min alt ~34°).
     lst = telescope.get_siderealtime()
     info(f"Current LST: {lst:.4f}h")
 
     targets = []
     # 4 Dec bands x 5 RA offsets = 20 positions
-    dec_values = [-70.0, -50.0, -30.0, -10.0]
+    dec_values = [-70.0, -50.0, -30.0, -20.0]
     ra_offsets = [-3.0, -1.5, 0.0, 1.5, 3.0]  # hours from LST
 
     for dec in dec_values:
