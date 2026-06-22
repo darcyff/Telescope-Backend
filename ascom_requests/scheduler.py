@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ascom_requests import telescope
 from ascom_requests import dome
+from ascom_requests import satellite_visibility as sv
 
 # ── Constants ───────────────────────────────────────────────────────────
 
@@ -183,6 +184,101 @@ def dome_abort(**kw):
     log.info("Dome slew aborted")
 
 
+# ── Satellite visibility actions ─────────────────────────────────────────
+
+def satellite_get_visible(
+    date: str = None,
+    location: str = sv.UNSW_LOCATION,
+    lat: float = sv.UNSW_LAT,
+    lon: float = sv.UNSW_LON,
+    elevation: float = sv.UNSW_ELEVATION,
+    sunset_window_minutes: int = 30,
+    **kw,
+):
+    """
+    Compute visible Starlink satellites and log their RA/Dec.
+
+    Reads orbital states from the autonomous-satellite-tracker ephemeris,
+    filters by sunset window, converts ECI->RA/Dec, and writes results to
+    the tracker's visibility_result.csv.
+
+    Schedule params:
+        date (str, optional): "YYYY-MM-DD" - defaults to today.
+        location (str): pytz timezone in "Country/City" form. Default: Australia/Sydney.
+        lat (float): Observatory latitude in degrees. Default: UNSW.
+        lon (float): Observatory longitude in degrees. Default: UNSW.
+        elevation (float): Observatory elevation in metres. Default: UNSW.
+        sunset_window_minutes (int): Minutes either side of sunset. Default: 30.
+    """
+    if date is None:
+        from datetime import datetime as _dt
+        date = _dt.now().strftime("%Y-%m-%d")
+
+    log.info(f"Computing satellite visibility for {date} at {location} "
+             f"({lat:.4f}\u00b0, {lon:.4f}\u00b0, {elevation:.0f}m)")
+
+    status = sv.check_ephemeris()
+    if not status["exists"]:
+        raise RuntimeError(status["message"])
+    log.info(f"Ephemeris: {status['date_range']}  |  {status['time_range']}")
+
+    satellites = sv.compute_visible_satellites(
+        date, location, lat, lon, elevation, sunset_window_minutes
+    )
+
+    if not satellites:
+        log.warning(f"No visible satellites found for {date} within ±{sunset_window_minutes}min of sunset")
+        return
+
+    log.info(f"Found {len(satellites)} visible satellite records:")
+    for s in satellites:
+        ra_h, ra_m, ra_s = sv.ra_deg_to_hours(s["ra_deg"])
+        dec_d, dec_m, dec_s = sv.dec_deg_to_dms(s["dec_deg"])
+        log.info(
+            f"  [{s['satellite_id']}] {s['time']}  "
+            f"RA={ra_h:02d}h{ra_m:02d}m{ra_s:05.2f}s  "
+            f"Dec={dec_d:+03d}\u00b0{dec_m:02d}'{dec_s:04.1f}\""
+        )
+    log.info(f"Results saved to {sv.VISIBILITY_FILE}")
+
+
+def satellite_slew_to_next(index: int = 0, **kw):
+    """
+    Slew the telescope to a satellite from the most recent visibility results.
+
+    Reads visibility_result.csv produced by satellite_get_visible and slews
+    to the satellite at the given index (0 = first visible).
+
+    Schedule params:
+        index (int): Index into the visibility results list. Default: 0.
+    """
+    satellites = sv.load_visibility_results()
+    if not satellites:
+        raise RuntimeError(
+            "No visibility results found. Run satellite_get_visible first."
+        )
+    if index >= len(satellites):
+        raise IndexError(
+            f"index={index} but only {len(satellites)} satellite records available"
+        )
+
+    sat = satellites[index]
+    ra_hours = sv.ra_deg_to_hours_decimal(sat["ra_deg"])
+    dec_deg  = sat["dec_deg"]
+
+    log.info(
+        f"Slewing to satellite {sat['satellite_id']} "
+        f"(index {index}/{len(satellites)-1})  "
+        f"RA={ra_hours:.4f}h  Dec={dec_deg:.4f}\u00b0  "
+        f"(from visibility time {sat['time']})"
+    )
+    telescope.slew_to_coordinates_async(ra_hours, dec_deg)
+    _wait_telescope_slew()
+    actual_ra  = telescope.get_rightascension()
+    actual_dec = telescope.get_declination()
+    log.info(f"Telescope arrived at RA={actual_ra:.4f}h  Dec={actual_dec:.4f}\u00b0")
+
+
 # ── Action registry ─────────────────────────────────────────────────────
 
 ACTIONS = {
@@ -205,6 +301,9 @@ ACTIONS = {
     "dome_close_shutter":     dome_close_shutter,
     "dome_slave":             dome_slave,
     "dome_abort":             dome_abort,
+    # Satellite visibility
+    "satellite_get_visible":  satellite_get_visible,
+    "satellite_slew_to_next": satellite_slew_to_next,
 }
 
 
